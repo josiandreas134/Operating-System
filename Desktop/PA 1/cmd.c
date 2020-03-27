@@ -49,13 +49,13 @@ int main()
 
     Step 1: I count the number of commands that is going to be executed by this program by using the fucntion tokenize. We input the cmdline (command line) and delimiting 
             the char "|", then store it as segments.
-    Step 2: I create loops corresponding to the number of commands that I got in the Step 1.
+    Step 2: I create loops corresponding to the number of segments that I got in the Step 1.
         //within the loops
         Step 2.1: If it is not the last command, I will create a pipe to connect it with previous command 
         Step 2.2: Then, I will fork() the process since we are going to execute more than 1 commands. We need a new process as the previous process will be used
                   to store the previous execvp and then will be passed to the new process through pipe.
             //Piping process
-            Step 2.2.1: If it is not the last command, we will redirect the stdout of the pipe to the input of the pipe which is pdfs[1]. We do it because we
+            Step 2.2.1: If it is not the last command, we will redirect the stdout of the pipe to the input of the pipe which is pfds[1]. We do it because we
                         want to use the pipe to move the current data to the next pipe.
             Step 2.2.2: If it is not the first command, we will close the input and use the data contained in the pipe as the input of the current process. We
                         direct the output of the pipe to the imput of the current process.
@@ -66,56 +66,54 @@ int main()
             Step 2.2.4: Now we have array named strings which contain all the executable command. We use execvp and pass the array so that it will execute 
                         after all the string have been extracted. The array will continue to grow until the loop is finished and then it will execute the 
                         command.
-        Step 2.3: Since we want ot use the previous pipe output as the new input for each loop, in each loop we will store the output of the pipe (pdfs(0)) and
-                  store it in a variable called 'in'. This variable is the one used as the input in Step 2.2.2. We close pdfs[1] since we are not using it. 
-    Step 3: We use wait(0) so that it will wait the program to finish executing which in my case are contained on the child's process.
+        Step 2.3: We use wait(0) so that it will wait the child's process to finish before executing the code below it. Since we want ot use the previous pipe 
+                  output as the new input for each loop, in each loop we will store the output of the pipe (pfds(0)) and
+                  store it in a variable called 'in'. This variable is the one used as the input in Step 2.2.2. We close pfds[1] since we are not using it. 
+    
 
  */
 void process_cmd(char *cmdline)
 {   char* segments[MAX_PIPE_SEGMENTS];
-    int num=0;
-    int* numTokens = &num;
+    int numTokens = 0;
     //Step 1
-    tokenize(segments ,cmdline, numTokens,"|");
-    int i, in, out = dup(1);    // save the original standard output
+    tokenize(segments ,cmdline, &numTokens,"|");
+    int in, i = 0;    // save the original standard output
     //Step 2
-    for (i = 0; i < num; i++)
+    for (i = 0; i <numTokens; i++)
     {
-        int pdfs[2];
+        int pfds[2];
         // Step 2.1
-        if (i < num-1){ 
-            pipe(pdfs);
+        if (i < numTokens-1){ 
+            pipe(pfds);
             } 
         // Step 2.2 
         pid_t pid = fork();
         if (pid == 0)
         {
             // Step 2.2.1
-            if(i < num-1){
-                dup2(pdfs[1], 1);
-                close(pdfs[1]);
+            if(i != numTokens-1){
+                dup2(pfds[1], 1);
+                close(pfds[1]);
             }
             // Step 2.2.2
-            if(i != 0){
+            if(i > 0){
                 dup2(in, 0);
                 close(in);
             }
             // Step 2.2.3
-            char* strings[MAX_SEGMENT_LENGTH];
-            int y = 0;
-            int* numStrings = &y;
-            tokenize(strings, segments[i], numStrings, " ");
-            execvp(strings[0], strings);
+            char* cmd_[MAX_SEGMENT_LENGTH];
+            int numStrings = 0;
+            tokenize(cmd_, segments[i], &numStrings, " ");
+            execvp(cmd_[0], cmd_);
         }
         // Step 2.3
-        close(pdfs[1]);
-        in = pdfs[0]; // previous pipe output as the new in
+        wait(0);
+        close(pfds[1]);
+        in = pfds[0]; // previous pipe output as the new in
         
     }
-    //Step 3
-    wait(0);
     // Delete this line to start your work
-    printf("Debug: %s\n", cmdline);
+    //printf("Debug: %s\n", cmdline);
 }
 
 // Implementation of tokenize function
